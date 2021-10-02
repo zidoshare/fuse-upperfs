@@ -1,0 +1,18 @@
+FROM centos:7
+WORKDIR /app/fusequota
+RUN sed -e 's|^mirrorlist=|#mirrorlist=|g' \
+         -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://mirrors.tuna.tsinghua.edu.cn|g' \
+         -i.bak \
+         /etc/yum.repos.d/CentOS-*.repo && \
+         yum makecache
+RUN yum install -y autoconf automake make gcc fuse-devel
+
+COPY . .
+
+RUN autoreconf --install && \
+    ./configure && \
+    make && \
+    make install && \
+    rm -rf /app/fusequota
+
+ENTRYPOINT [ "fusequota" ]
