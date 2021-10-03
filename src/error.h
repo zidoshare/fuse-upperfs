@@ -26,7 +26,7 @@
 
 /**
  * Report the error described by the current errno to the
- * user, prefixed by the given message. 
+ * user, prefixed by the given message.
  */
 void error(char *msg);
 

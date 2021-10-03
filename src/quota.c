@@ -27,7 +27,6 @@
 #include <stdlib.h>
 
 #include <errno.h>
-#include <fuse.h>
 #include <limits.h>
 #include <string.h>
 

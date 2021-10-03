@@ -1,4 +1,4 @@
-#ifdef XATTR_STORE_H
+#ifndef XATTR_STORE_H
 #define XATTR_STORE_H
 
 #include <string.h>

@@ -34,6 +34,9 @@
 #define BYTES_IN_GIGABYTE 1073741824.0L
 #define BYTES_IN_TERABYTE 1099511627776.0L
 
+int initialized(const char *path);
+long incr_size(long s);
+long entry_size(const char *path);
 /**
  * Computes the amount of space on the filesystem taken up by
  * the file or directory at the given path.
