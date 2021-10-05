@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "*.yaml": "yaml",
-        "*.yml": "yaml",
-        "errno.h": "c",
-        "fuse.h": "c"
-    }
-}
