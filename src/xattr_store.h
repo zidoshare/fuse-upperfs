@@ -3,6 +3,10 @@
 
 #include <string.h>
 
+// 初始化
+void
+local_xattr_db_init(const char* db_parent_path,const char* mount_base_dir);
+
 int
 local_set_xattr(const char* path,
                 const char* name,

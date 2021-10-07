@@ -1,21 +1,26 @@
 #define _XOPEN_SOURCE 500
 
 #include "fuse_ops.h"
-
+#include "quota.h"
+#include "space.h"
 #include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/xattr.h>
 #include <unistd.h>
 
-#include "quota.h"
-#include "space.h"
+#ifdef FUSE3
+#include "fuse_utime.h"
+//#define __USE_ATFILE 1
+//#include <fcntl.h>
+//#else
+//#include <utime.h>
+#endif
+
+#include "xattr_store.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -28,14 +33,211 @@ fullpath(const char* path, char* buf)
   strcat(buf, path);
 }
 
+#ifdef FUSE3
 int
-fuse_getattr(const char* path, struct stat* buf, struct fuse_file_info* fi)
+fuse_getattr(const char* path,
+             struct stat* buf,
+             __attribute__((unused)) struct fuse_file_info* fi)
 {
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
   return lstat(fpath, buf) ? -errno : 0;
 }
+
+int
+fuse_rename(const char* src,
+            const char* dst,
+            __attribute__((unused)) unsigned int flags)
+{
+  char fsrc[PATH_MAX];
+  fullpath(src, fsrc);
+
+  char fdst[PATH_MAX];
+  fullpath(dst, fdst);
+
+  return rename(fsrc, fdst) ? -errno : 0;
+}
+
+int
+fuse_chmod(const char* path,
+           mode_t mode,
+           __attribute__((unused)) struct fuse_file_info* fi)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  return chmod(fpath, mode) ? -errno : 0;
+}
+
+int
+fuse_chown(const char* path,
+           uid_t uid,
+           gid_t gid,
+           __attribute__((unused)) struct fuse_file_info* fi)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  return chown(fpath, uid, gid) ? -errno : 0;
+}
+
+int
+fuse_truncate(const char* path,
+              off_t off,
+              __attribute__((unused)) struct fuse_file_info* fi)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  pthread_mutex_lock(&mutex);
+  long original_size = entry_size(fpath);
+  long diff = (long)off - original_size;
+  incr_size(diff);
+
+  int result = truncate(fpath, off) ? -errno : 0;
+  pthread_mutex_unlock(&mutex);
+  return result;
+}
+
+int
+fuse_utimens(const char* path,
+             const struct timespec tv[2],
+             __attribute__((unused)) struct fuse_file_info* fi)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+  // 这里贼神奇，在我的电脑上直接调用不行，非要封装一层。。。 不知道是为什么
+  // 另外 这里 fd 应该传递 fcntl.h 里的 AT_FDCWD。但是因为 `__USE_ATFILE`
+  // 宏未定义，导致无法引用这个参数，也不知道怎么定义，目前初步测试通过。
+  return fuse_utimesat(-100, fpath, tv, 0) ? -errno : 0;
+}
+
+int
+fuse_readdir(__attribute__((unused)) const char* path,
+             __attribute__((unused)) void* buf,
+             __attribute__((unused)) fuse_fill_dir_t fill,
+             __attribute__((unused)) off_t off,
+             struct fuse_file_info* fi,
+             __attribute__((unused)) enum fuse_readdir_flags flags)
+{
+  struct dirent* de = NULL;
+
+  while ((de = readdir((DIR*)fi->fh)) != NULL) {
+    struct stat st;
+    memset(&st, 0, sizeof(struct stat));
+    st.st_ino = de->d_ino;
+    st.st_mode = de->d_type << 12;
+
+    // TODO 最后一个参数不知道填啥
+    if (fill(buf, de->d_name, &st, 0, 0))
+      break;
+  }
+
+  return 0;
+}
+
+void*
+fuse_init(__attribute__((unused)) struct fuse_conn_info* conn,
+          __attribute__((unused)) struct fuse_config* cfg)
+{
+  return (fuse_get_context())->private_data;
+}
+
+#else
+int
+fuse_getattr(const char* path, struct stat* buf)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  return lstat(fpath, buf) ? -errno : 0;
+}
+
+int
+fuse_rename(const char* src, const char* dst)
+{
+  char fsrc[PATH_MAX];
+  fullpath(src, fsrc);
+
+  char fdst[PATH_MAX];
+  fullpath(dst, fdst);
+
+  return rename(fsrc, fdst) ? -errno : 0;
+}
+
+int
+fuse_chmod(const char* path, mode_t mode)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  return chmod(fpath, mode) ? -errno : 0;
+}
+
+int
+fuse_chown(const char* path, uid_t uid, gid_t gid)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  return chown(fpath, uid, gid) ? -errno : 0;
+}
+
+int
+fuse_truncate(const char* path, off_t off)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  pthread_mutex_lock(&mutex);
+  long original_size = entry_size(fpath);
+  long diff = (long)off - original_size;
+  incr_size(diff);
+
+  int result = truncate(fpath, off) ? -errno : 0;
+  pthread_mutex_unlock(&mutex);
+  return result;
+}
+
+int
+fuse_utime(const char* path, struct utimbuf* buf)
+{
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+
+  return utime(fpath, buf) ? -errno : 0;
+}
+
+int
+fuse_readdir(const char* path,
+             void* buf,
+             fuse_fill_dir_t fill,
+             off_t off,
+             struct fuse_file_info* fi)
+{
+  struct dirent* de = NULL;
+
+  while ((de = readdir((DIR*)fi->fh)) != NULL) {
+    struct stat st;
+    memset(&st, 0, sizeof(struct stat));
+    st.st_ino = de->d_ino;
+    st.st_mode = de->d_type << 12;
+
+    if (fill(buf, de->d_name, &st, 0))
+      break;
+  }
+
+  return 0;
+}
+
+void*
+fuse_init(struct fuse_conn_info* conn)
+{
+  return (fuse_get_context())->private_data;
+}
+
+#endif
 
 int
 fuse_readlink(const char* path, char* target, size_t size)
@@ -97,18 +299,6 @@ fuse_symlink(const char* path, const char* link)
 }
 
 int
-fuse_rename(const char* src, const char* dst, unsigned int flags)
-{
-  char fsrc[PATH_MAX];
-  fullpath(src, fsrc);
-
-  char fdst[PATH_MAX];
-  fullpath(dst, fdst);
-
-  return rename(fsrc, fdst) ? -errno : 0;
-}
-
-int
 fuse_link(const char* src, const char* dst)
 {
   char fsrc[PATH_MAX];
@@ -118,51 +308,6 @@ fuse_link(const char* src, const char* dst)
   fullpath(dst, fdst);
 
   return link(fsrc, fdst) ? -errno : 0;
-}
-
-int
-fuse_chmod(const char* path, mode_t mode, struct fuse_file_info* fi)
-{
-  char fpath[PATH_MAX];
-  fullpath(path, fpath);
-
-  return chmod(fpath, mode) ? -errno : 0;
-}
-
-int
-fuse_chown(const char* path, uid_t uid, gid_t gid, struct fuse_file_info* fi)
-{
-  char fpath[PATH_MAX];
-  fullpath(path, fpath);
-
-  return chown(fpath, uid, gid) ? -errno : 0;
-}
-
-int
-fuse_truncate(const char* path, off_t off, struct fuse_file_info* fi)
-{
-  char fpath[PATH_MAX];
-  fullpath(path, fpath);
-
-  pthread_mutex_lock(&mutex);
-  long original_size = entry_size(fpath);
-  long diff = (long)off - original_size;
-  incr_size(diff);
-
-  int result = truncate(fpath, off) ? -errno : 0;
-  pthread_mutex_unlock(&mutex);
-  return result;
-}
-
-int
-fuse_utimens(const char* path,
-             const struct timespec tv[2],
-             __attribute__((unused)) struct fuse_file_info* fi)
-{
-  char fpath[PATH_MAX];
-  fullpath(path, fpath);
-
-  return utimensat(0, fpath, tv, 1) ? -errno : 0;
 }
 
 int
@@ -187,7 +332,7 @@ fuse_read(__attribute__((unused)) const char* path,
           off_t off,
           struct fuse_file_info* fi)
 {
-  return pread(fi->fh, buf, size, off) < 0 ? -errno : size;
+  return pread(fi->fh, buf, size, off) < 0 ? -errno : (int)size;
 }
 
 int
@@ -204,7 +349,7 @@ fuse_write(__attribute__((unused)) const char* path,
     return -ENOSPC;
   }
 
-  int result = pwrite(fi->fh, buf, size, off) < 0 ? -errno : size;
+  int result = pwrite(fi->fh, buf, size, off) < 0 ? -errno : (int)size;
   if (result > 0)
     incr_size(size);
 
@@ -251,7 +396,7 @@ fuse_setxattr(const char* path,
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  return lsetxattr(fpath, name, value, size, flags) ? -errno : 0;
+  return local_set_xattr(fpath, name, value, size, flags) ? -errno : 0;
 }
 
 int
@@ -260,8 +405,8 @@ fuse_getxattr(const char* path, const char* name, char* value, size_t size)
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  ssize_t s = lgetxattr(fpath, name, value, size);
-  return s < 0 ? -errno : s;
+  ssize_t s = local_get_xattr(fpath, name, value, size);
+  return s < 0 ? -errno : (int)s;
 }
 
 int
@@ -270,7 +415,7 @@ fuse_listxattr(const char* path, char* list, size_t size)
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  return llistxattr(fpath, list, size) < 0 ? -errno : 0;
+  return local_list_xattr(fpath, list, size) < 0 ? -errno : 0;
 }
 
 int
@@ -279,7 +424,7 @@ fuse_removexattr(const char* path, const char* name)
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  return lremovexattr(fpath, name) ? -errno : 0;
+  return local_remove_xattr(fpath, name) ? -errno : 0;
 }
 
 int
@@ -298,30 +443,6 @@ fuse_opendir(const char* path, struct fuse_file_info* fi)
 }
 
 int
-fuse_readdir(__attribute__((unused)) const char* path,
-             void* buf,
-             fuse_fill_dir_t fill,
-             __attribute__((unused)) off_t off,
-             struct fuse_file_info* fi,
-             enum fuse_readdir_flags flags)
-{
-  struct dirent* de = NULL;
-
-  while ((de = readdir((DIR*)fi->fh)) != NULL) {
-    struct stat st;
-    memset(&st, 0, sizeof(struct stat));
-    st.st_ino = de->d_ino;
-    st.st_mode = de->d_type << 12;
-
-    // TODO
-    // if (fill(buf, de->d_name, &st, 0))
-    //   break;
-  }
-
-  return 0;
-}
-
-int
 fuse_releasedir(__attribute__((unused)) const char* path,
                 struct fuse_file_info* fi)
 {
@@ -335,10 +456,4 @@ fuse_access(const char* path, int mode)
   fullpath(path, fpath);
 
   return access(fpath, mode) ? -errno : 0;
-}
-
-void*
-fuse_init(struct fuse_conn_info* conn, struct fuse_config* cfg)
-{
-  return (fuse_get_context())->private_data;
 }

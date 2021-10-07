@@ -77,7 +77,7 @@ quota_exceeded()
 }
 
 void
-quota_unset(const char* path)
+quota_unset(__attribute__((unused)) const char* path)
 {
   global_quota = 0;
   strcpy(global_path, "");

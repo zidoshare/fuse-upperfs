@@ -1,6 +1,12 @@
 #define _XOPEN_SOURCE 500
 
+#ifdef FUSE3
 #define FUSE_USE_VERSION 31
+#else
+#define FUSE_USE_VERSION 26
+#endif
+
+#define MAX_FUSE_ARGC 20
 
 #include <fuse.h>
 #include <limits.h>
@@ -12,9 +18,11 @@
 #include "error.h"
 #include "fuse_ops.h"
 #include "quota.h"
+#include "xattr_store.h"
 
 char base[PATH_MAX];
 
+#ifdef FUSE3
 struct fuse_operations fuse_ops = {
   .getattr = fuse_getattr,
   .readlink = fuse_readlink,
@@ -45,14 +53,43 @@ struct fuse_operations fuse_ops = {
   .access = fuse_access,
   .init = fuse_init,
 };
-
+#else
+struct fuse_operations fuse_ops = {
+  .getattr = fuse_getattr,
+  .readlink = fuse_readlink,
+  .mknod = fuse_mknod,
+  .mkdir = fuse_mkdir,
+  .unlink = fuse_unlink,
+  .rmdir = fuse_rmdir,
+  .symlink = fuse_symlink,
+  .rename = fuse_rename,
+  .link = fuse_link,
+  .chmod = fuse_chmod,
+  .chown = fuse_chown,
+  .truncate = fuse_truncate,
+  .utime = fuse_utime,
+  .open = fuse_open,
+  .read = fuse_read,
+  .write = fuse_write,
+  .statfs = fuse_statfs,
+  .release = fuse_release,
+  .fsync = fuse_fsync,
+  .setxattr = fuse_setxattr,
+  .getxattr = fuse_getxattr,
+  .listxattr = fuse_listxattr,
+  .removexattr = fuse_removexattr,
+  .opendir = fuse_opendir,
+  .readdir = fuse_readdir,
+  .releasedir = fuse_releasedir,
+  .access = fuse_access,
+  .init = fuse_init,
+};
+#endif
 void
 usage()
 {
-  printf("fusequota exceeded <path>\n");
-  printf("fusequota unset <path>\n");
-
-  printf("fusequota mount <basedir> <mountpoint> [<size> [-u<B|K|M|G|T>]]\n");
+  printf("fuseupperfs mount <basedir> <mountpoint> [-s<size>] [-u<B|K|M|G|T>]"
+         "[-x <xattr db_path>]\n");
 
   exit(0);
 }
@@ -91,23 +128,52 @@ main(int argc, char* argv[])
       error("main_realpath");
     unsigned long size = -1;
     enum units unit = BYTES;
-    int ignoreIndex = 2;
-    if (argc >= 5 && argv[4][0] != '-') {
-      ignoreIndex += 1;
-      size = (unsigned long)atol(argv[4]);
-      int c = getopt(argc, argv, "u:");
-      if (c >= 0) {
-        unit = char_to_units(optarg[0]);
-        ignoreIndex += 2;
+
+    int flag;
+    char db_parent_dir[PATH_MAX] = "";
+
+    opterr = 0;
+
+    while ((flag = getopt(argc, argv, "s:u:x:")) != -1) {
+      // getopt 会导致位置切换
+      switch (flag) {
+        case 's':
+          size = (unsigned long)strtol(optarg, NULL, 0);
+          break;
+        case 'u':
+          unit = char_to_units(optarg[0]);
+          break;
+        case 'x':
+          strcpy(db_parent_dir, optarg);
+          break;
+        default:
+          goto outer;
       }
     }
-    argv[1] = argv[3];
-    int i = 2;
-    for (; i < argc; i++)
-      argv[i] = argv[i + ignoreIndex];
-    argc -= ignoreIndex;
-
+  outer:;
+    if (db_parent_dir[0] == '\0') {
+      strcpy(db_parent_dir, base);
+      strcat(db_parent_dir, "/xattr");
+      if (access(db_parent_dir, F_OK) != 0) {
+        if (mkdir(db_parent_dir, 640) != 0) {
+          error("failed to create xattr db dir");
+          exit(1);
+        }
+      }
+      local_xattr_db_init(db_parent_dir, base);
+    } else {
+      char real_parent_dir[PATH_MAX];
+      if (realpath(db_parent_dir, real_parent_dir) == NULL)
+        error("cannot get real path for db parent dir");
+      local_xattr_db_init(real_parent_dir, base);
+    }
     quota_set(base, size, unit);
+
+    int i = 1;
+    for (; optind + i - 3 < argc; i++)
+      argv[i] = argv[optind + i - 3];
+    argc = i;
+
     int ret = fuse_main(argc, argv, &fuse_ops, base);
 
     if (ret < 0)

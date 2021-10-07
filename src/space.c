@@ -1,7 +1,7 @@
 #define _XOPEN_SOURCE 500
 
 #include "space.h"
-
+#include "error.h"
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
@@ -13,9 +13,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "error.h"
-static char _path[4096] = "";
-static unsigned long _size = -1;
+static char global_path[4096] = "";
+static unsigned long global_size = -1;
 
 unsigned long
 directory_size(const char* path)
@@ -80,38 +79,35 @@ entry_size(const char* path)
 long
 incr_size(long s)
 {
-  if (_size == (unsigned long)-1)
-    space(_path);
-  if (_size == (unsigned long)-1)
+  if (global_size == (unsigned long)-1)
+    space(global_path);
+  if (global_size == (unsigned long)-1)
     return -1;
-  if (_size + s < 0)
-    _size = 0;
+  if ((long)global_size + s < 0)
+    global_size = 0;
   else
-    _size += s;
-  return _size;
+    global_size += s;
+  return global_size;
 }
 
 unsigned long
 space(const char* path)
 {
-  int len = strlen(_path);
+  int len = strlen(global_path);
   if (len)
-    return _size;
+    return global_size;
 
   char fpath[PATH_MAX];
   if (realpath(path, fpath) == NULL)
     error("main.realpath");
-  strcpy(_path, fpath);
-  _size = entry_size(fpath);
+  strcpy(global_path, fpath);
+  global_size = entry_size(fpath);
 
-  if (_size < 0)
-    error("main.entry_size");
-
-  return (unsigned long)_size;
+  return global_size;
 }
 
 int
 initialized(__attribute__((unused)) const char* path)
 {
-  return strlen(_path);
+  return strlen(global_path);
 }
