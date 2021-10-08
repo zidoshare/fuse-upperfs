@@ -1,18 +1,15 @@
 FROM centos:7
-WORKDIR /app/fusequota
+WORKDIR /app/fuseupperfs
 RUN sed -e 's|^mirrorlist=|#mirrorlist=|g' \
          -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://mirrors.tuna.tsinghua.edu.cn|g' \
          -i.bak \
          /etc/yum.repos.d/CentOS-*.repo && \
          yum makecache
-RUN yum install -y autoconf automake make gcc fuse-devel
+RUN yum install -y cmake make gcc fuse-devel fuse3-devel
 
 COPY . .
 
-RUN autoreconf --install && \
-    ./configure && \
-    make && \
-    make install && \
-    rm -rf /app/fusequota
+RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
+  make
 
-ENTRYPOINT [ "fusequota" ]
+ENTRYPOINT [ "./fuseupperfs" ]

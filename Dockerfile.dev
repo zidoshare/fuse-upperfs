@@ -1,4 +1,4 @@
 FROM fedora:33
 WORKDIR /app/fusequota
 
-RUN yum install -y git autoconf automake make gcc fuse3-devel leveldb-devel
+RUN yum install -y git cmake make gcc fuse3-devel fuse-devel leveldb-devel

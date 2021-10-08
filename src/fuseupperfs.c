@@ -89,7 +89,7 @@ void
 usage()
 {
   printf("fuseupperfs mount <basedir> <mountpoint> [-s<size>] [-u<B|K|M|G|T>]"
-         "[-x <xattr db_path>]\n");
+         "[-x <xattr db_path>] [-- <fuse options>]\n");
 
   exit(0);
 }

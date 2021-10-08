@@ -1,14 +1,11 @@
 FROM centos:7
-WORKDIR /app/fusequota
+WORKDIR /app/fuseupperfs
 
-RUN yum install -y autoconf automake make gcc fuse-devel
+RUN yum install -y cmake make gcc fuse-devel fuse3-devel
 
 COPY . .
 
-RUN autoreconf --install && \
-    ./configure && \
-    make && \
-    make install && \
-    rm -rf /app/fusequota
+RUN cmake -DCMAKE_BUILD_TYPE=Release . && \
+  make
 
-CMD [ "fusequota" ]
+CMD [ "./fuseupperfs" ]
