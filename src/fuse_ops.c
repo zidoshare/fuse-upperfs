@@ -415,7 +415,20 @@ fuse_listxattr(const char* path, char* list, size_t size)
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  return local_list_xattr(fpath, list, size) < 0 ? -errno : 0;
+  size_t len = local_list_xattr(fpath, list, size);
+  int result = len < 0 ? -errno : (int)len;
+  printf("result is %d\n", result);
+  if (size != 0) {
+    printf("current list is (size %ld,len %ld):", size, len);
+    for (int i = 0; i < len; i++) {
+      if (*(list + i) == '\0')
+        printf("\\0");
+      else
+        printf("%c", *(list + i));
+    }
+    printf("\n");
+  }
+  return result;
 }
 
 int

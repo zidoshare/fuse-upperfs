@@ -131,9 +131,6 @@ main(int argc, char* argv[])
 
     int flag;
     char db_parent_dir[PATH_MAX] = "";
-
-    opterr = 0;
-
     while ((flag = getopt(argc, argv, "s:u:x:")) != -1) {
       // getopt 会导致位置切换
       switch (flag) {
@@ -147,7 +144,7 @@ main(int argc, char* argv[])
           strcpy(db_parent_dir, optarg);
           break;
         default:
-          goto outer;
+          break;
       }
     }
   outer:;
@@ -170,8 +167,8 @@ main(int argc, char* argv[])
     quota_set(base, size, unit);
 
     int i = 1;
-    for (; optind + i - 3 < argc; i++)
-      argv[i] = argv[optind + i - 3];
+    for (; optind + i + 1 < argc; i++)
+      argv[i] = argv[optind + i + 1];
     argc = i;
 
     int ret = fuse_main(argc, argv, &fuse_ops, base);
