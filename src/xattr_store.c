@@ -18,9 +18,9 @@ mkdir_all(char* folder_path)
     return 1;
   }
 
-  char path[256];
+  char path[PATH_MAX];
   char* path_buf;
-  char temp_path[256];
+  char temp_path[PATH_MAX];
   char* temp;
   int temp_len;
 
@@ -29,7 +29,7 @@ mkdir_all(char* folder_path)
   strcat(path, folder_path);
   path_buf = path;
 
-  while ((temp = strsep(&path_buf, "/")) != NULL) { /* 拆分路径 */
+  while ((temp = strsep(&path_buf, "/")) != NULL) {
     temp_len = strlen(temp);
     if (0 == temp_len) {
       continue;
@@ -37,7 +37,7 @@ mkdir_all(char* folder_path)
     strcat(temp_path, "/");
     strcat(temp_path, temp);
     printf("temp_path = %s\n", temp_path);
-    if (-1 == access(temp_path, F_OK)) { /* 不存在则创建 */
+    if (-1 == access(temp_path, F_OK)) {
       if (-1 == mkdir(temp_path, 0777)) {
         return 2;
       }
@@ -76,7 +76,7 @@ get_db_path(const char* path, char* dest_path)
   }
   char parent_dir[PATH_MAX];
   strncpy(parent_dir, dest_path, i);
-
+  parent_dir[i] = '\0';
   mkdir_all(parent_dir);
 }
 
