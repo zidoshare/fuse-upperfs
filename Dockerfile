@@ -1,7 +1,7 @@
-FROM centos:7
+FROM fedora:33
 WORKDIR /app/fuseupperfs
 
-RUN yum install -y cmake make gcc fuse-devel fuse3-devel
+RUN yum install -y cmake make gcc fuse-devel leveldb-devel
 
 COPY . .
 

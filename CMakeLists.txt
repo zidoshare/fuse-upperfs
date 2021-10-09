@@ -1,8 +1,7 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1)
 project(fuseupperfs C)
 
 set(CMAKE_C_STANDARD 11)
-#set(CMAKE_C_FLAGS "-I/usr/include/fuse3 -lfuse3 -lpthread -lleveldb")
 
 include_directories(src)
 add_executable(${PROJECT_NAME}
@@ -27,12 +26,12 @@ endif ()
 
 if (DEFINED FUSE3)
     include_directories(/usr/include/fuse3)
-    target_link_libraries(${PROJECT_NAME} -lfuse3)
+    target_link_libraries(${PROJECT_NAME} fuse3)
     ADD_DEFINITIONS(-DFUSE3)
 else ()
-    target_link_libraries(${PROJECT_NAME} -lfuse)
+    target_link_libraries(${PROJECT_NAME} fuse)
 endif ()
-target_link_libraries(${PROJECT_NAME} -lpthread -lleveldb)
+target_link_libraries(${PROJECT_NAME} pthread leveldb)
 
 set(ignoreMe "${FUSE3}")
 # cmake -DCMAKE_BUILD_TYPE=Debug . 编译后可以用 gdb 调试
