@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 2.8)
 project(fuseupperfs C)
 
 set(CMAKE_C_STANDARD 11)
