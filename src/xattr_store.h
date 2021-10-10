@@ -5,7 +5,10 @@
 
 // 初始化
 void
-local_xattr_db_init(const char* db_parent_path,const char* mount_base_dir);
+local_xattr_db_init(const char* db_parent_path, const char* mount_base_dir);
+
+void
+local_xattr_db_release();
 
 int
 local_set_xattr(const char* path,

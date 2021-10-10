@@ -470,3 +470,9 @@ fuse_access(const char* path, int mode)
 
   return access(fpath, mode) ? -errno : 0;
 }
+
+void
+local_fuse_destroy(void* private_data)
+{
+  local_xattr_db_release();
+}

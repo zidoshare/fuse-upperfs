@@ -149,7 +149,7 @@ fuse_releasedir(const char* path, struct fuse_file_info* fi);
 
 // int (*fsyncdir) (const char *, int, struct fuse_file_info *);
 
-// void (*destroy) (void *private_data);
+void local_fuse_destroy (void *private_data);
 
 int
 fuse_access(const char* path, int mode);

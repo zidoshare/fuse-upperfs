@@ -52,6 +52,7 @@ struct fuse_operations fuse_ops = {
   .releasedir = fuse_releasedir,
   .access = fuse_access,
   .init = fuse_init,
+  .destroy = local_fuse_destroy,
 };
 #else
 struct fuse_operations fuse_ops = {
@@ -83,6 +84,7 @@ struct fuse_operations fuse_ops = {
   .releasedir = fuse_releasedir,
   .access = fuse_access,
   .init = fuse_init,
+  .destroy = local_fuse_destroy,
 };
 #endif
 void
@@ -147,12 +149,11 @@ main(int argc, char* argv[])
           break;
       }
     }
-  outer:;
     if (db_parent_dir[0] == '\0') {
       strcpy(db_parent_dir, base);
-      strcat(db_parent_dir, "/xattr");
+      strcat(db_parent_dir, "/.xattr");
       if (access(db_parent_dir, F_OK) != 0) {
-        if (mkdir(db_parent_dir, 640) != 0) {
+        if (mkdir(db_parent_dir, 0744) != 0) {
           error("failed to create xattr db dir");
           exit(1);
         }
