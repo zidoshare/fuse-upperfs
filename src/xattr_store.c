@@ -16,6 +16,9 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static leveldb_t* DB = NULL;
 
+static leveldb_readoptions_t* roptions = NULL;
+static leveldb_writeoptions_t* woptions = NULL;
+
 bool
 file_exists(char* filename)
 {
@@ -34,7 +37,7 @@ mkdir_all(char* folder_path)
   char* path_buf;
   char temp_path[PATH_MAX];
   char* temp;
-  int temp_len;
+  size_t temp_len;
 
   memset(path, 0, sizeof(path));
   memset(temp_path, 0, sizeof(temp_path));
@@ -71,6 +74,8 @@ local_xattr_db_release()
   pthread_mutex_lock(&mutex);
   if (DB != NULL) {
     leveldb_close(DB);
+    leveldb_readoptions_destroy(roptions);
+    leveldb_writeoptions_destroy(woptions);
   }
   pthread_mutex_unlock(&mutex);
 }
@@ -81,7 +86,7 @@ create_db()
   if (!file_exists(GLOBAL_DB_PATH)) {
     mkdir_all(GLOBAL_DB_PATH);
   }
-  printf("GLOBAL_DB_PATH is %s",GLOBAL_DB_PATH);
+  printf("GLOBAL_DB_PATH is %s\n", GLOBAL_DB_PATH);
   leveldb_t* db;
   leveldb_options_t* options;
   char* err = NULL;
@@ -92,10 +97,12 @@ create_db()
 
   if (err != NULL) {
     fprintf(stderr, "Get DB fail: %s\n", err);
+    leveldb_free(err);
     return NULL;
   }
-  leveldb_free(err);
-  err = NULL;
+
+  roptions = leveldb_readoptions_create();
+  woptions = leveldb_writeoptions_create();
   return db;
 }
 
@@ -125,10 +132,9 @@ get_db_key(const char* path, const char* name, size_t* result_len)
   return buf;
 }
 
-char*
-unwrap_db_key(const char* path,
-              size_t path_len,
-              char* key,
+const char*
+unwrap_db_key(size_t path_len,
+              const char* key,
               size_t key_len,
               size_t* result_len)
 {
@@ -144,34 +150,41 @@ local_set_xattr(const char* path,
                 int flags)
 {
   leveldb_t* db = get_db();
-  char* original_value = NULL;
+  char* original_value;
   char* err = NULL;
 
   size_t name_len;
-  char* wrappered_name = get_db_key(path, name, &name_len);
+  char* wrapped_name = get_db_key(path, name, &name_len);
 
   if (db != NULL) {
-    leveldb_readoptions_t* roptions = leveldb_readoptions_create();
 
     size_t vallen = 0;
     original_value =
-      leveldb_get(db, roptions, wrappered_name, name_len, &vallen, &err);
+      leveldb_get(db, roptions, wrapped_name, name_len, &vallen, &err);
     if (err != NULL) {
       fprintf(stderr, "Get attr fail: %s\n", err);
       errno = ENOTSUP;
-      free(wrappered_name);
+
+      leveldb_free(err);
+      free(wrapped_name);
+
       return -1;
     }
-    leveldb_free(err);
-    err = NULL;
   }
 
   if (flags == 0 || (original_value == NULL && flags == XATTR_CREATE) ||
       (original_value != NULL && flags == XATTR_REPLACE)) {
-    leveldb_writeoptions_t* woptions = leveldb_writeoptions_create();
-    leveldb_put(db, woptions, wrappered_name, name_len, value, size, &err);
+    leveldb_put(db, woptions, wrapped_name, name_len, value, size, &err);
+
     leveldb_free(original_value);
-    free(wrappered_name);
+    free(wrapped_name);
+
+    if (err != NULL) {
+      fprintf(stderr, "Set attr fail: %s\n", err);
+      errno = ENOTSUP;
+      leveldb_free(err);
+      return -1;
+    }
     return 0;
   }
 
@@ -179,7 +192,10 @@ local_set_xattr(const char* path,
     errno = ENODATA;
   else if (original_value != NULL && flags == XATTR_CREATE)
     errno = EEXIST;
-  free(wrappered_name);
+
+  leveldb_free(original_value);
+  free(wrapped_name);
+
   return -1;
 }
 int
@@ -192,35 +208,39 @@ local_get_xattr(const char* path, const char* name, char* value, size_t size)
   }
   char* err = NULL;
   size_t name_len;
-  char* wrappered_name = get_db_key(path, name, &name_len);
-  leveldb_readoptions_t* roptions = leveldb_readoptions_create();
+  char* wrapped_name = get_db_key(path, name, &name_len);
 
   size_t vallen;
   char* db_store_value =
-    leveldb_get(db, roptions, wrappered_name, name_len, &vallen, &err);
+    leveldb_get(db, roptions, wrapped_name, name_len, &vallen, &err);
+
+  free(wrapped_name);
+
   if (err != NULL) {
     fprintf(stderr, "Get attr fail: %s\n", err);
+    leveldb_free(err);
+
     errno = ENOTSUP;
     return -1;
   }
-  leveldb_free(err);
 
   if (db_store_value == NULL) {
     errno = ENODATA;
     return -1;
   }
-  printf("value = %s,size = %ld\n", value, size);
 
   if (size != 0) {
     if (vallen <= size) {
       strcpy(value, db_store_value);
-      leveldb_free(db_store_value);
+      printf("value = %s,size = %ld\n", value, size);
     } else {
       errno = ERANGE;
+      leveldb_free(db_store_value);
       return -1;
     }
   }
 
+  leveldb_free(db_store_value);
   return (int)vallen;
 }
 int
@@ -230,7 +250,6 @@ local_list_xattr(const char* path, char* list, size_t size)
   if (db == NULL) {
     return 0;
   }
-  leveldb_readoptions_t* roptions = leveldb_readoptions_create();
 
   leveldb_iterator_t* iter = leveldb_create_iterator(db, roptions);
   if (size == 0) {
@@ -240,7 +259,7 @@ local_list_xattr(const char* path, char* list, size_t size)
       size_t vallen;
       const char* key = leveldb_iter_key(iter, &vallen);
       size_t key_len;
-      unwrap_db_key(path, strlen(path), key, vallen, &key_len);
+      unwrap_db_key(strlen(path), key, vallen, &key_len);
       len += key_len + 1;
     }
     leveldb_iter_destroy(iter);
@@ -257,7 +276,7 @@ local_list_xattr(const char* path, char* list, size_t size)
     size_t vallen;
     const char* key = leveldb_iter_key(iter, &vallen);
     size_t key_len;
-    char* result_key = unwrap_db_key(path, strlen(path), key, vallen, &key_len);
+    const char* result_key = unwrap_db_key(strlen(path), key, vallen, &key_len);
     memcpy(list + len, result_key, key_len);
     len += key_len + 1;
     *(list + len - 1) = '\0';
@@ -275,39 +294,36 @@ local_remove_xattr(const char* path, const char* name)
     return -1;
   }
 
-  leveldb_readoptions_t* roptions = leveldb_readoptions_create();
   char* err = NULL;
 
   size_t name_len;
-  char* wrappered_name = get_db_key(path, name, &name_len);
+  char* wrapped_name = get_db_key(path, name, &name_len);
   size_t vallen = 0;
   char* db_store_value =
-    leveldb_get(db, roptions, wrappered_name, name_len, &vallen, &err);
+    leveldb_get(db, roptions, wrapped_name, name_len, &vallen, &err);
   if (err != NULL) {
     fprintf(stderr, "Get attr fail: %s\n", err);
     errno = ENOTSUP;
-    free(wrappered_name);
+    free(wrapped_name);
     return -1;
   }
   leveldb_free(err);
   err = NULL;
   if (db_store_value == NULL) {
-    free(wrappered_name);
+    free(wrapped_name);
     errno = ENODATA;
     return -1;
   }
 
-  leveldb_writeoptions_t* woptions = leveldb_writeoptions_create();
-
-  leveldb_delete(db, woptions, wrappered_name, name_len, &err);
+  leveldb_delete(db, woptions, wrapped_name, name_len, &err);
   if (err != NULL) {
     fprintf(stderr, "Delete attr fail: %s\n", err);
     errno = ENOTSUP;
-    free(wrappered_name);
+    free(wrapped_name);
     return -1;
   }
   leveldb_free(err);
   err = NULL;
-  free(wrappered_name);
+  free(wrapped_name);
   return 0;
 }
