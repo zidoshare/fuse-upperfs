@@ -93,6 +93,7 @@ fuse_truncate(const char* path,
   pthread_mutex_lock(&mutex);
   long original_size = entry_size(fpath);
   long diff = (long)off - original_size;
+  printf("call truncate %s\n",fpath);
   incr_size(diff);
 
   int result = truncate(fpath, off) ? -errno : 0;
@@ -193,6 +194,7 @@ fuse_truncate(const char* path, off_t off)
   pthread_mutex_lock(&mutex);
   long original_size = entry_size(fpath);
   long diff = (long)off - original_size;
+  printf("call truncate %s\n",fpath);
   incr_size(diff);
 
   int result = truncate(fpath, off) ? -errno : 0;
@@ -273,7 +275,8 @@ fuse_unlink(const char* path)
   fullpath(path, fpath);
 
   pthread_mutex_lock(&mutex);
-  long original_size = space(fpath);
+  printf("call unlink %s\n",fpath);
+  long original_size = entry_size(fpath);
   incr_size(-original_size);
   int result = unlink(fpath) ? -errno : 0;
   pthread_mutex_unlock(&mutex);

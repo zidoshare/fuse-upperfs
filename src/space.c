@@ -79,7 +79,7 @@ entry_size(const char* path)
 long
 incr_size(long s)
 {
-  if (initialized())
+  if (!initialized())
     space(global_path);
   if ((long)global_size + s < 0)
     global_size = 0;
