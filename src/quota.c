@@ -46,7 +46,7 @@ quota_set(const char* path, unsigned long size, enum units unit)
 {
   global_quota = (long)(size * unit);
   strcpy(global_path, path);
-  if (!initialized(path))
+  if (!initialized())
     space(path);
 }
 

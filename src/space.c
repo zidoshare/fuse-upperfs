@@ -79,34 +79,35 @@ entry_size(const char* path)
 long
 incr_size(long s)
 {
-  if (strlen(global_path)== 0)
+  if (initialized())
     space(global_path);
   if ((long)global_size + s < 0)
     global_size = 0;
   else
     global_size += s;
-  printf("the oringinal size is %ld, incr size is %ld,the result size is %ld",global_size - s,s,global_size);
+  printf("the oringinal size is %ld, incr size is %ld,the result size is %ld\n",global_size - s,s,global_size);
   return global_size;
 }
 
 unsigned long
 space(const char* path)
 {
-  int len = strlen(global_path);
-  if (len)
+  if (initialized())
     return global_size;
 
   char fpath[PATH_MAX];
   if (realpath(path, fpath) == NULL)
     error("main.realpath");
+  printf("the global_path is %s\n",global_path);
   strcpy(global_path, fpath);
   global_size = entry_size(fpath);
+  printf("the global_size is %ld\n",global_size);
 
   return global_size;
 }
 
-int
-initialized(__attribute__((unused)) const char* path)
+bool
+initialized()
 {
-  return strlen(global_path);
+  return global_path[0] != '\0';
 }
