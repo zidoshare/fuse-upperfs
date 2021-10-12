@@ -98,8 +98,8 @@ space(const char* path)
   char fpath[PATH_MAX];
   if (realpath(path, fpath) == NULL)
     error("main.realpath");
-  printf("the global_path is %s\n",global_path);
   strcpy(global_path, fpath);
+  printf("the global_path is %s\n",global_path);
   global_size = entry_size(fpath);
   printf("the global_size is %ld\n",global_size);
 
