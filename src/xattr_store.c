@@ -319,11 +319,11 @@ local_remove_xattr(const char* path, const char* name)
   if (err != NULL) {
     fprintf(stderr, "Delete attr fail: %s\n", err);
     errno = ENOTSUP;
+    leveldb_free(err);
+    err = NULL;
     free(wrapped_name);
     return -1;
   }
-  leveldb_free(err);
-  err = NULL;
   free(wrapped_name);
   return 0;
 }

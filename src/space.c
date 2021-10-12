@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 static char global_path[4096] = "";
-static unsigned long global_size = -1;
+static unsigned long global_size = 0;
 
 unsigned long
 directory_size(const char* path)
@@ -79,14 +79,13 @@ entry_size(const char* path)
 long
 incr_size(long s)
 {
-  if (global_size == (unsigned long)-1)
+  if (strlen(global_path)== 0)
     space(global_path);
-  if (global_size == (unsigned long)-1)
-    return -1;
   if ((long)global_size + s < 0)
     global_size = 0;
   else
     global_size += s;
+  printf("the oringinal size is %ld, incr size is %ld,the result size is %ld",global_size - s,s,global_size);
   return global_size;
 }
 
