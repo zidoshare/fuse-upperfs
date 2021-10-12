@@ -125,10 +125,10 @@ char*
 get_db_key(const char* path, const char* name, size_t* result_len)
 {
   size_t prefix_len = strlen(path);
-  *result_len = (prefix_len + strlen(name));
+  *result_len = (prefix_len + strlen(name) + 1);
   char* buf = (char*)malloc(sizeof(char) * ((*result_len) + 2));
   strcpy(buf, path);
-  strcat(buf, name);
+  strcpy(buf + prefix_len + 1, name);
   return buf;
 }
 
@@ -138,8 +138,8 @@ unwrap_db_key(size_t path_len,
               size_t key_len,
               size_t* result_len)
 {
-  *result_len = key_len - path_len;
-  return key + path_len;
+  *result_len = key_len - path_len - 1;
+  return key + path_len + 1;
 }
 
 int
@@ -243,6 +243,7 @@ local_get_xattr(const char* path, const char* name, char* value, size_t size)
   leveldb_free(db_store_value);
   return (int)vallen;
 }
+
 int
 local_list_xattr(const char* path, char* list, size_t size)
 {
@@ -250,16 +251,19 @@ local_list_xattr(const char* path, char* list, size_t size)
   if (db == NULL) {
     return 0;
   }
+  size_t path_len = strlen(path);
 
   leveldb_iterator_t* iter = leveldb_create_iterator(db, roptions);
   if (size == 0) {
     size_t len = 0;
-    for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter);
+    for (leveldb_iter_seek(iter, path, path_len); leveldb_iter_valid(iter);
          leveldb_iter_next(iter)) {
       size_t vallen;
       const char* key = leveldb_iter_key(iter, &vallen);
+      if (strcmp(key, path) != 0)
+        break;
       size_t key_len;
-      unwrap_db_key(strlen(path), key, vallen, &key_len);
+      unwrap_db_key(path_len, key, vallen, &key_len);
       len += key_len + 1;
     }
     leveldb_iter_destroy(iter);
@@ -267,16 +271,19 @@ local_list_xattr(const char* path, char* list, size_t size)
     return (int)len;
   }
   size_t len = 0;
-  for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter);
+  for (leveldb_iter_seek(iter, path, path_len); leveldb_iter_valid(iter);
        leveldb_iter_next(iter)) {
     if (size < len) {
       errno = ERANGE;
+      leveldb_iter_destroy(iter);
       return -1;
     }
     size_t vallen;
     const char* key = leveldb_iter_key(iter, &vallen);
+    if (strcmp(key, path) != 0)
+      break;
     size_t key_len;
-    const char* result_key = unwrap_db_key(strlen(path), key, vallen, &key_len);
+    const char* result_key = unwrap_db_key(path_len, key, vallen, &key_len);
     memcpy(list + len, result_key, key_len);
     len += key_len + 1;
     *(list + len - 1) = '\0';
