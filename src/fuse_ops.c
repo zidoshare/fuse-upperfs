@@ -12,6 +12,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "log.h"
+
 #ifdef FUSE3
 #include "fuse_utime.h"
 //#define __USE_ATFILE 1
@@ -93,7 +95,7 @@ fuse_truncate(const char* path,
   pthread_mutex_lock(&mutex);
   long original_size = entry_size(fpath);
   long diff = (long)off - original_size;
-  printf("call truncate %s\n",fpath);
+  up_logf("call truncate %s\n",fpath);
   incr_size(diff);
 
   int result = truncate(fpath, off) ? -errno : 0;
@@ -194,7 +196,7 @@ fuse_truncate(const char* path, off_t off)
   pthread_mutex_lock(&mutex);
   long original_size = entry_size(fpath);
   long diff = (long)off - original_size;
-  printf("call truncate %s\n",fpath);
+  up_logf("call truncate %s\n",fpath);
   incr_size(diff);
 
   int result = truncate(fpath, off) ? -errno : 0;
@@ -275,7 +277,7 @@ fuse_unlink(const char* path)
   fullpath(path, fpath);
 
   pthread_mutex_lock(&mutex);
-  printf("call unlink %s\n",fpath);
+  up_logf("call unlink %s\n",fpath);
   long original_size = entry_size(fpath);
   incr_size(-original_size);
   int result = unlink(fpath) ? -errno : 0;
@@ -346,7 +348,7 @@ fuse_write(__attribute__((unused)) const char* path,
            struct fuse_file_info* fi)
 {
   pthread_mutex_lock(&mutex);
-  printf("fuse write call begin\n");
+  up_logf("fuse write call begin\n");
   if (quota_exceeded() != 0) {
     pthread_mutex_unlock(&mutex);
     return -ENOSPC;
@@ -357,8 +359,8 @@ fuse_write(__attribute__((unused)) const char* path,
     incr_size(size);
 
   pthread_mutex_unlock(&mutex);
-  printf("fuse write result no: %d\n", result);
-  printf("fuse write call end\n");
+  up_logf("fuse write result no: %d\n", result);
+  up_logf("fuse write call end\n");
   return result;
 }
 
@@ -420,17 +422,6 @@ fuse_listxattr(const char* path, char* list, size_t size)
 
   int len = local_list_xattr(fpath, list, size);
   int result = len < 0 ? -errno : len;
-  //printf("result is %d\n", result);
-  //if (result > 0) {
-  //  printf("current list is (size %ld,len %d):", size, len);
-  //  for (int i = 0; i < len; i++) {
-  //    if (*(list + i) == '\0')
-  //      printf("\\0");
-  //    else
-  //      printf("%c", *(list + i));
-  //  }
-  //  printf("\n");
-  //}
   return result;
 }
 

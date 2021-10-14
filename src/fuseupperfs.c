@@ -19,6 +19,7 @@
 #include "fuse_ops.h"
 #include "quota.h"
 #include "xattr_store.h"
+#include "log.h"
 
 char base[PATH_MAX];
 
@@ -91,7 +92,7 @@ void
 usage()
 {
   printf("fuseupperfs mount <basedir> <mountpoint> [-s<size>] [-u<B|K|M|G|T>]"
-         "[-x <xattr db_path>] [-- <fuse options>]\n");
+         "[-x <xattr db_path>] [-d] [-- <fuse options>]\n");
 
   exit(0);
 }
@@ -133,7 +134,8 @@ main(int argc, char* argv[])
 
     int flag;
     char db_parent_dir[PATH_MAX] = "";
-    while ((flag = getopt(argc, argv, "s:u:x:")) != -1) {
+    int debug_enable = 0;
+    while ((flag = getopt(argc, argv, "s:u:x:d")) != -1) {
       // getopt 会导致位置切换
       switch (flag) {
         case 's':
@@ -145,6 +147,9 @@ main(int argc, char* argv[])
         case 'x':
           strcpy(db_parent_dir, optarg);
           break;
+        case 'd':
+          debug_enable = 1;
+          up_log_enable();
         default:
           break;
       }
@@ -171,6 +176,9 @@ main(int argc, char* argv[])
     for (; optind + i + 1 < argc; i++)
       argv[i] = argv[optind + i + 1];
     argc = i;
+    if(debug_enable) {
+      argv[argc++] = "-d";
+    }
 
     int ret = fuse_main(argc, argv, &fuse_ops, base);
 

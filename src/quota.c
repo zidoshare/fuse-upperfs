@@ -12,6 +12,7 @@
 
 #include "error.h"
 #include "space.h"
+#include "log.h"
 
 enum units
 char_to_units(const char c)
@@ -63,13 +64,13 @@ int
 quota_exceeded()
 {
   unsigned long quota = quota_get(BYTES);
-  printf("current quota: %ld\n", quota);
+  up_logf("current quota: %ld\n", quota);
 
   if (quota == 0)
     return 0;
 
   unsigned long size = space(global_path);
-  printf("current size: %ld\n", size);
+  up_logf("current size: %ld\n", size);
   if (size >= quota)
     return -1;
 

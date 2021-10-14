@@ -10,6 +10,8 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+#include "log.h"
+
 static char GLOBAL_DB_PATH[PATH_MAX];
 static char MOUNT_BASE_DIR[PATH_MAX];
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -51,7 +53,7 @@ mkdir_all(char* folder_path)
     }
     strcat(temp_path, "/");
     strcat(temp_path, temp);
-    printf("temp_path = %s\n", temp_path);
+    up_logf("temp_path = %s\n", temp_path);
     if (-1 == access(temp_path, F_OK)) {
       if (-1 == mkdir(temp_path, 0744)) {
         return 2;
@@ -86,7 +88,7 @@ create_db()
   if (!file_exists(GLOBAL_DB_PATH)) {
     mkdir_all(GLOBAL_DB_PATH);
   }
-  printf("GLOBAL_DB_PATH is %s\n", GLOBAL_DB_PATH);
+  up_logf("GLOBAL_DB_PATH is %s\n", GLOBAL_DB_PATH);
   leveldb_t* db;
   leveldb_options_t* options;
   char* err = NULL;
@@ -232,7 +234,7 @@ local_get_xattr(const char* path, const char* name, char* value, size_t size)
   if (size != 0) {
     if (vallen <= size) {
       strcpy(value, db_store_value);
-      printf("value = %s,size = %ld\n", value, size);
+      up_logf("value = %s,size = %ld\n", value, size);
     } else {
       errno = ERANGE;
       leveldb_free(db_store_value);
@@ -267,7 +269,7 @@ local_list_xattr(const char* path, char* list, size_t size)
       len += key_len + 1;
     }
     leveldb_iter_destroy(iter);
-    printf("len = %d\n", (int)len);
+    up_logf("len = %d\n", (int)len);
     return (int)len;
   }
   size_t len = 0;

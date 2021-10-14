@@ -12,6 +12,8 @@ add_executable(${PROJECT_NAME}
         src/fuse_utime.c
         src/fuse_utime.h
         src/fuseupperfs.c
+        src/log.c
+        src/log.h
         src/quota.c
         src/quota.h
         src/space.c

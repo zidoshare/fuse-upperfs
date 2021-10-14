@@ -2,6 +2,7 @@
 
 #include "space.h"
 #include "error.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
@@ -12,6 +13,8 @@
 #include <sys/statfs.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include "log.h"
 
 static char global_path[4096] = "";
 static unsigned long global_size = 0;
@@ -85,7 +88,7 @@ incr_size(long s)
     global_size = 0;
   else
     global_size += s;
-  printf("the oringinal size is %ld, incr size is %ld,the result size is %ld\n",global_size - s,s,global_size);
+  up_logf("the oringinal size is %ld, incr size is %ld,the result size is %ld\n",global_size - s,s,global_size);
   return global_size;
 }
 
@@ -99,9 +102,9 @@ space(const char* path)
   if (realpath(path, fpath) == NULL)
     error("main.realpath");
   strcpy(global_path, fpath);
-  printf("the global_path is %s\n",global_path);
+  up_logf("the global_path is %s\n",global_path);
   global_size = entry_size(fpath);
-  printf("the global_size is %ld\n",global_size);
+  up_logf("the global_size is %ld\n",global_size);
 
   return global_size;
 }
