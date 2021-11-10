@@ -342,17 +342,12 @@ fuse_write(__attribute__((unused)) const char* path,
            off_t off,
            struct fuse_file_info* fi)
 {
-  up_logf("fuse write call begin\n");
   char fpath[PATH_MAX];
   fullpath(path, fpath);
   if(limited(fpath) && incr_size(fpath, size) <= 0){
     return -ENOSPC;
   }
-
   int result = pwrite(fi->fh, buf, size, off) < 0 ? -errno : (int)size;
-
-  up_logf("fuse write result no: %d\n", result);
-  up_logf("fuse write call end\n");
   return result;
 }
 
