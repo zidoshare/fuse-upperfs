@@ -91,7 +91,7 @@ struct fuse_operations fuse_ops = {
 void
 usage()
 {
-  printf("fuseupperfs mount <basedir> <mountpoint> [-s<size>] [-u<B|K|M|G|T>]"
+  printf("fuseupperfs mount <basedir> <mountpoint> [-p<quota path> [-s<size>] [-u<B|K|M|G|T>]]"
          "[-x <xattr db_path>] [-d] [-- <fuse options>]\n");
 
   exit(0);
@@ -110,20 +110,7 @@ main(int argc, char* argv[])
   if (realpath(path, fpath) == NULL)
     error("main_realpath");
 
-  if (strcmp(command, "get") == 0) {
-    int c = getopt(argc, argv, "u:");
-    enum units unit = (c < 0) ? BYTES : char_to_units(optarg[0]);
-
-    long double size = quota_get(unit);
-
-    printf("%Lf\n", size);
-  } else if (strcmp(command, "exceeded") == 0) {
-    if (quota_exceeded() == 0)
-      printf("NOT ");
-    printf("EXCEEDED\n");
-  } else if (strcmp(command, "unset") == 0)
-    quota_unset(fpath);
-  else if (strcmp(command, "mount") == 0) {
+  if (strcmp(command, "mount") == 0) {
     if (argc < 4)
       usage();
 
@@ -134,8 +121,9 @@ main(int argc, char* argv[])
 
     int flag;
     char db_parent_dir[PATH_MAX] = "";
+    char quota_path[PATH_MAX] = "/";
     int debug_enable = 0;
-    while ((flag = getopt(argc, argv, "s:u:x:d")) != -1) {
+    while ((flag = getopt(argc, argv, "p:s:u:x:d")) != -1) {
       // getopt 会导致位置切换
       switch (flag) {
         case 's':
@@ -150,6 +138,13 @@ main(int argc, char* argv[])
         case 'd':
           debug_enable = 1;
           up_log_enable();
+          break;
+        case 'p':
+          strcpy(quota_path,optarg);
+          if(strstr(quota_path,"..")) {
+              error("cannot use relative path");
+          }
+          break;
         default:
           break;
       }
@@ -170,7 +165,13 @@ main(int argc, char* argv[])
         error("cannot get real path for db parent dir");
       local_xattr_db_init(real_parent_dir, base);
     }
-    quota_set(base, size, unit);
+    char tmp_quota_path[PATH_MAX] = "";
+    strcpy(tmp_quota_path, base);
+    strcat(tmp_quota_path, quota_path);
+    char real_quota_path[PATH_MAX] = "";
+    if (realpath(tmp_quota_path,real_quota_path) == NULL)
+      error("cannot get real path for quota path");
+    quota_set(real_quota_path, size, unit);
 
     int i = 1;
     for (; optind + i + 1 < argc; i++)
@@ -180,6 +181,9 @@ main(int argc, char* argv[])
       argv[argc++] = "-d";
     }
 
+    for(int i = 0; i < argc; i++)
+      printf("%s ",argv[i]);
+    printf("\n");
     int ret = fuse_main(argc, argv, &fuse_ops, base);
 
     if (ret < 0)

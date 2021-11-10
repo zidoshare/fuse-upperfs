@@ -14,11 +14,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "log.h"
-
-static char global_path[4096] = "";
-static unsigned long global_size = 0;
-
 unsigned long
 directory_size(const char* path)
 {
@@ -79,38 +74,11 @@ entry_size(const char* path)
     return buf.st_size;
 }
 
-long
-incr_size(long s)
-{
-  if (!initialized())
-    space(global_path);
-  if ((long)global_size + s < 0)
-    global_size = 0;
-  else
-    global_size += s;
-  up_logf("the oringinal size is %ld, incr size is %ld,the result size is %ld\n",global_size - s,s,global_size);
-  return global_size;
-}
-
 unsigned long
 space(const char* path)
 {
-  if (initialized())
-    return global_size;
-
   char fpath[PATH_MAX];
   if (realpath(path, fpath) == NULL)
     error("main.realpath");
-  strcpy(global_path, fpath);
-  up_logf("the global_path is %s\n",global_path);
-  global_size = entry_size(fpath);
-  up_logf("the global_size is %ld\n",global_size);
-
-  return global_size;
-}
-
-bool
-initialized()
-{
-  return global_path[0] != '\0';
+  return entry_size(fpath);
 }

@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/xattr.h>
+#include <stdatomic.h>
 
 #include "error.h"
 #include "space.h"
@@ -33,7 +34,8 @@ char_to_units(const char c)
   }
 }
 
-long global_quota = 0;
+// 当前文件夹资源剩余大小
+static atomic_long global_quota = 0;
 char global_path[PATH_MAX];
 
 unsigned long
@@ -45,41 +47,63 @@ min(unsigned long l1, unsigned long l2)
 void
 quota_set(const char* path, unsigned long size, enum units unit)
 {
-  global_quota = (long)(size * unit);
   strcpy(global_path, path);
-  if (!initialized())
-    space(path);
+  long space_of_path = space(path);
+  up_logf("space of %s: %ld\n",path,space_of_path);
+  global_quota = (long)(size * unit) - space_of_path;
+  up_logf("space initialzed!the remain size is [%ld]\n",global_quota);
 }
 
 long double
-quota_get(enum units unit)
+quota_get(const char* path, enum units unit)
 {
-  return global_quota / unit;
+  if(limited(path))
+    return global_quota / unit;
+  return -1;
 }
 
 /**
  * Determines if a write can succeed under the quota restrictions.
  */
-int
-quota_exceeded()
+long
+quota_exceeded(const char* path)
 {
-  unsigned long quota = quota_get(BYTES);
-  up_logf("current quota: %ld\n", quota);
-
-  if (quota == 0)
-    return 0;
-
-  unsigned long size = space(global_path);
-  up_logf("current size: %ld\n", size);
-  if (size >= quota)
-    return -1;
-
-  return 0;
+  if(limited(path))
+    return global_quota;
+  return 1;
 }
 
-void
-quota_unset(__attribute__((unused)) const char* path)
+long
+incr_size(const char* path, long s)
 {
-  global_quota = 0;
-  strcpy(global_path, "");
+  if(limited(path)) {
+    long original_quota,result_quota;
+    do{
+      original_quota = global_quota;
+      result_quota = 0;
+      if(original_quota > s)
+        result_quota = original_quota - s;
+    }while(!atomic_compare_exchange_weak(&global_quota, &original_quota, result_quota));
+
+    up_logf("the oringinal quota is %ld, incr size is %ld,the result quota is %ld\n", original_quota , s, global_quota);
+    return global_quota;
+  }
+  return LONG_MAX;
+}
+
+
+void
+quota_unset(const char* path)
+{
+  if(limited(path)){
+    global_quota = LONG_MAX;
+    strcpy(global_path, "");
+  }
+}
+
+int limited(const char* path){
+  up_logf("global path is %s,target path is %s\n",global_path,path);
+  if(strncmp(path, global_path, strlen(global_path)) == 0)
+    return 1;
+  return 0;
 }

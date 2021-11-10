@@ -16,10 +16,13 @@ char_to_units(const char c);
 void
 quota_set(const char* path, unsigned long size, enum units unit);
 long double
-quota_get(enum units unit);
-int
-quota_exceeded();
+quota_get(const char* path, enum units unit);
+long
+incr_size(const char* path, long s);
+long
+quota_exceeded(const char* path);
 void
-quota_unset();
+quota_unset(const char* path);
+int limited(const char* path);
 
 #endif

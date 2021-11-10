@@ -7,10 +7,6 @@
 #define BYTES_IN_GIGABYTE 1073741824.0L
 #define BYTES_IN_TERABYTE 1099511627776.0L
 
-bool
-initialized();
-long
-incr_size(long s);
 long
 entry_size(const char* path);
 unsigned long

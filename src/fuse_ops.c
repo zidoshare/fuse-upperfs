@@ -6,11 +6,11 @@
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdatomic.h>
 
 #include "log.h"
 
@@ -24,7 +24,6 @@
 
 #include "xattr_store.h"
 
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void
 fullpath(const char* path, char* buf)
@@ -92,15 +91,14 @@ fuse_truncate(const char* path,
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  pthread_mutex_lock(&mutex);
-  long original_size = entry_size(fpath);
-  long diff = (long)off - original_size;
-  up_logf("call truncate %s\n",fpath);
-  incr_size(diff);
+  if(limited(fpath)){
+    long original_size = entry_size(fpath);
+    long diff = (long)off - original_size;
+    up_logf("call truncate %s\n",fpath);
+    incr_size(fpath, diff);
+  }
 
-  int result = truncate(fpath, off) ? -errno : 0;
-  pthread_mutex_unlock(&mutex);
-  return result;
+  return truncate(fpath, off) ? -errno : 0;
 }
 
 int
@@ -193,15 +191,14 @@ fuse_truncate(const char* path, off_t off)
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  pthread_mutex_lock(&mutex);
-  long original_size = entry_size(fpath);
-  long diff = (long)off - original_size;
-  up_logf("call truncate %s\n",fpath);
-  incr_size(diff);
+  if(limited(fpath)) {
+    long original_size = entry_size(fpath);
+    long diff = (long)off - original_size;
+    up_logf("call truncate %s\n",fpath);
+    incr_size(fpath, diff);
+  }
 
-  int result = truncate(fpath, off) ? -errno : 0;
-  pthread_mutex_unlock(&mutex);
-  return result;
+  return truncate(fpath, off) ? -errno : 0;
 }
 
 int
@@ -276,14 +273,12 @@ fuse_unlink(const char* path)
   char fpath[PATH_MAX];
   fullpath(path, fpath);
 
-  pthread_mutex_lock(&mutex);
-  up_logf("call unlink %s\n",fpath);
-  long original_size = entry_size(fpath);
-  incr_size(-original_size);
-  int result = unlink(fpath) ? -errno : 0;
-  pthread_mutex_unlock(&mutex);
-
-  return result;
+  if(limited(fpath)){
+    up_logf("call unlink %s\n",fpath);
+    long original_size = entry_size(fpath);
+    incr_size(fpath, -original_size);
+  }
+  return unlink(fpath) ? -errno : 0;
 }
 
 int
@@ -347,18 +342,15 @@ fuse_write(__attribute__((unused)) const char* path,
            off_t off,
            struct fuse_file_info* fi)
 {
-  pthread_mutex_lock(&mutex);
   up_logf("fuse write call begin\n");
-  if (quota_exceeded() != 0) {
-    pthread_mutex_unlock(&mutex);
+  char fpath[PATH_MAX];
+  fullpath(path, fpath);
+  if(limited(fpath) && incr_size(fpath, size) <= 0){
     return -ENOSPC;
   }
 
   int result = pwrite(fi->fh, buf, size, off) < 0 ? -errno : (int)size;
-  if (result > 0)
-    incr_size(size);
 
-  pthread_mutex_unlock(&mutex);
   up_logf("fuse write result no: %d\n", result);
   up_logf("fuse write call end\n");
   return result;
