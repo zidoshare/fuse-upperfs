@@ -20,3 +20,8 @@ fuseupperfs
 .devcontainer/
 .idea/
 cmake-build-*/
+
+
+# Added by cargo
+
+/target

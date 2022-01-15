@@ -1,3 +1,5 @@
+**正在尝试用 Rust 重写中**
+
 # fuse-upperfs
 
 fuse-upperfs 是一个用户态文件系统，通过 mount 指令代理一个已有文件系统的文件夹，提供:
