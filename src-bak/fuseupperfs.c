@@ -88,6 +88,21 @@ struct fuse_operations fuse_ops = {
   .destroy = local_fuse_destroy,
 };
 #endif
+
+static struct options {
+  const char *base;
+  const char *quota_path;
+  const char *quota_size;
+  const char *xattr_store;
+  int show_help;
+} options;
+
+#define OPTION(t,p) \
+{ t, offsetof(struct options, p), 1}
+static const struct fuse_opt option_spec[] = {
+  OPTION("--base=%s",filename),
+}
+
 void
 usage()
 {
