@@ -1,0 +1,4 @@
+-std=c11
+-I/usr/include/fuse3
+-lfuse3
+-lpthread

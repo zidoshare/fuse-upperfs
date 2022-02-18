@@ -1,6 +1,0 @@
-FROM fedora:33
-WORKDIR /app/fuseupperfs
-
-RUN yum install -y git cmake make gcc fuse3-devel leveldb-devel
-
-CMD [ "./fuseupperfs" ]

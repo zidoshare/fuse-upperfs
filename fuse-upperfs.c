@@ -1,9 +1,5 @@
 #define FUSE_USE_VERSION 35
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -16,23 +12,15 @@
 #include <err.h>
 #include <errno.h>
 #include <error.h>
+#include <signal.h>
+#include <stdlib.h>
 
-#include "hash.h"
-
-#if defined(__GNUC__) && (__GNUC__ > 4 || __GNUC__ == 4 && __GNUC_MINOR__ >= 6) && !defined __cplusplus
-_Static_assert(sizeof(fuse_ino_t) >= sizeof(uintptr_t),
-               "fuse_ino_t too small to hold uintptr_t values!");
-#else
-struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct
-{
-    unsigned _uintptr_to_must_hold_fuse_ino_t : ((sizeof(fuse_ino_t) >= sizeof(uintptr_t)) ? 1 : -1);
-};
-#endif
+struct hash_map;
 
 struct lo_inode
 {
     struct lo_inode *parent;
-    struct hash_map children;
+    struct hash_map *children;
     size_t name_hash;
     int fd;
     ino_t ino;
@@ -58,7 +46,7 @@ struct lo_data
     double timeout;
     int cache;
     int timeout_set;
-    struct hash_map inodes;
+    struct hash_map *inodes;
 };
 
 static const struct fuse_opt lo_opts[] = {
@@ -89,6 +77,12 @@ static const struct fuse_opt lo_opts[] = {
 
     FUSE_OPT_END};
 
+static size_t node_inode_hasher (const void *p, size_t s)
+{
+  struct lo_inode *n = (struct lo_inode *)p;
+
+  return (n->ino ^ n->dev) % s;
+}
 
 void maximize_fd_limit()
 {
@@ -101,6 +95,11 @@ void maximize_fd_limit()
     if (res != 0)
         error( EXIT_FAILURE, errno, "write nofile rlimit failed");
 }
+
+static struct fuse_lowlevel_ops up_oper =
+{
+
+};
 
 int main(int argc, char *argv[])
 {
@@ -118,4 +117,42 @@ int main(int argc, char *argv[])
     umask(0);
 
     pthread_mutex_init(&lo.mutex, NULL);
+
+    se = fuse_session_new(&args,&up_oper,sizeof (up_oper), &lo);
+    if (se == NULL)
+    {
+      error(0, errno, "cannot create FUSE session");
+      goto err_out1;
+    }
+
+    if( fuse_set_signal_handlers(se) != 0)
+    {
+      error(0, errno, "cannot set signal handler");
+      goto err_out2;
+    }
+
+    if(fuse_session_mount(se, argv[2]) != 0)
+    {
+      error(0, errno, "mount failed");
+      exit(EXIT_FAILURE);
+    }
+
+    fuse_daemonize(1);
+
+    struct fuse_loop_config loop_config;
+    loop_config.clone_fd = 0;
+    loop_config.max_idle_threads = 10;
+    ret = fuse_session_loop_mt(se, &loop_config);
+
+    fuse_session_unmount(se);
+
+err_out3:
+    fuse_remove_signal_handlers(se);
+err_out2:
+    fuse_session_destroy(se);
+err_out1:
+    fuse_opt_free_args(&args);
+
+    return ret ? 1: 0;
 }
+
