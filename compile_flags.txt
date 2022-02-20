@@ -1,4 +1,6 @@
 -std=c11
+-W
+-Wall
 -I/usr/include/fuse3
 -lfuse3
 -lpthread

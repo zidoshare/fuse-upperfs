@@ -1,22 +1,3 @@
-CMakeLists.txt.user
-CMakeCache.txt
-CMakeFiles/
-CMakeScripts
-Testing/
-Makefile
-cmake_install.cmake
-install_manifest.txt
-compile_commands.json
-CTestTestfile.cmake
-_deps
-*.cbp
-
-fuseupperfs
-
-# editors
-
-.ycm_extra_conf.py
-.vscode/
-.devcontainer/
-.idea/
-cmake-build-*/
+*.out
+fuse-upperfs
+compile_flags.txt
